@@ -1,0 +1,106 @@
+// 4. Grupiši sve zaposlene po sektoru i izračunaj prosečnu platu po sektoru.
+// Sačuvaj rezultate u novu kolekciju statistika_plata. Rezultate prikaži sortirane po prosečnoj plati
+// u opadajućem redosledu.
+
+db.zaposleni.aggregate([
+    {
+        $group: {
+            _id: "$sektor",
+            prosecna_plata: { $avg: "$plata" },
+            broj_zaposlenih: { $sum: 1}
+        }
+    },
+    {
+        $sort: {
+            prosecna_plata: -1
+        }
+    },
+    {
+        $project: {
+            _id: 0,
+            sektor: "$_id",
+            prosecna_plata: 1,
+            broj_zaposlenih: 1
+        }
+    },
+    {
+        $out: "statistika_plata2"
+    }
+])
+
+
+// Povećaj platu svim zaposlenima u sektoru Finansije za 15%. Dodaj polje azurirano sa trenutnim datumom
+// i polje izvor_promene: “ispit”. Vrati broj ažuriranih dokumenata.
+// ({ $multiply: ["$plata", 1.15] })
+db.zaposleni.updateMany(
+    { sektor: "Finansije" },
+    [
+        {
+            $set: {
+                plata: { $multiply: ["$plata", 1.15] },
+                azurirano: new Date(),
+                izvor_promene: "ispit"
+            }
+        }
+    ]
+)
+
+
+
+// Prikaži sve projekte koji imaju budžet veći od 40000. Zatim grupiši projekte po nazivu projekta
+// i izračunaj ukupan broj članova tima i prosečan broj sati po projektu.
+// Vrati naziv projekta, broj članova i prosečan broj sati.
+
+db.getCollection("projekti").aggregate([
+    {
+        $match: {
+            budzet: { $gt: 40000 }
+        }
+    },
+    {
+        $unwind: "$tim"
+    },
+    {
+        $group: {
+            _id: "$naziv_projekta",
+            broj_clanova: { $sum: 1 },
+            prosek_sati: { $avg: "$tim.sati"}
+        }
+    },
+    {
+        $project: {
+            _id: 0,
+            naziv_projekta: "$_id",
+            broj_clanova: 1,
+            prosek_sati: 1
+        }
+    }
+])
+
+
+// 4. Grupiši sve zaposlene po sektoru i izračunaj prosečnu platu po sektoru.
+// Sačuvaj rezultate u novu kolekciju statistika_plata. Rezultate prikaži sortirane po prosečnoj plati
+// u opadajućem redosledu.
+
+db.zaposleni.aggregate([
+    {
+        $group: {
+            _id: "$sektor",
+            prosecna_plata: { $avg: "$plata" },
+            broj_saposlenih: { $sum: 1}
+        }
+    },
+    {
+        $sort: {
+            prosecna_plata: -1
+        }
+    },
+    {
+        $out: "statistika_plata"
+    }
+])
+
+
+// 5. Kreiraj obican indeks na polju sektor u kolekciji zaposleni. Kreiraj jedinstveni index za broj zaposlenog.
+db.getCollection("zaposleni").createIndex({ sektor: 1 }, { name: "idx_zaposleni_sektor"})
+db.zaposleni.createIndex({ "broj_zaposlenog": 1 }, { name: "uq_zaposleni_broj_zaposlenog", unique: true})
