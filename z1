@@ -1,0 +1,154 @@
+// 1. plata između 2000 i 3000
+db.zaposleni.find(
+  { plata: { $gte: 2000, $lte: 3000 } },
+  { _id: 0, ime: 1, plata: 1 }
+)
+
+// 2. sektor IT ili Finansije
+db.zaposleni.find(
+  { $or: [{ sektor: "IT" }, { sektor: "Finansije" }] },
+  { _id: 0, ime: 1, sektor: 1, plata: 1 }
+)
+
+// 3. imaju polje plata definisano
+db.zaposleni.find(
+  { plata: { $exists: true } },
+  { _id: 0, ime: 1, plata: 1, pozicija: 1 }
+)
+
+// 4. projekti gde postoji član sa >15 sati i zadatak nije završen
+db.projekti.find(
+  { tim: { $elemMatch: { sati: { $gt: 15 }, zavrsen: false } } }
+)
+// 1) clanovi_projekta sa brojem_zaposlenog i sati
+db.projekti.aggregate([
+  {
+    $project: {
+      naziv_projekta: 1,
+      clanovi_projekta: {
+        $map: {
+          input: "$tim",
+          as: "clan",
+          in: {
+            broj_zaposlenog: "$$clan.broj_zaposlenog",
+            sati: "$$clan.sati"
+          }
+        }
+      }
+    }
+  }
+])
+
+// 2) dodati polje status za svakog clana (preopterećen >20)
+db.projekti.aggregate([
+  {
+    $project: {
+      naziv_projekta: 1,
+      tim: {
+        $map: {
+          input: "$tim",
+          as: "clan",
+          in: {
+            $mergeObjects: [
+              "$$clan",
+              { status: { $cond: [{ $gt: ["$$clan.sati", 20] }, "preopterecen", "normalno"] } }
+            ]
+          }
+        }
+      }
+    }
+  }
+])
+// A) projekti sa budzetom > 40000, broj clanova i prosecno sati
+db.projekti.aggregate([
+  { $match: { budzet: { $gt: 40000 } } },
+  { $unwind: "$tim" },
+  {
+    $group: {
+      _id: "$naziv_projekta",
+      ukupan_broj_clanova: { $sum: 1 },
+      prosecan_broj_sati: { $avg: "$tim.sati" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      naziv_projekta: "$_id",
+      ukupan_broj_clanova: 1,
+      prosecan_broj_sati: 1
+    }
+  }
+])
+
+// B) za svaki projekat: preoptereceni (>15) i normalni (10–15 uklj.)
+db.projekti.aggregate([
+  { $unwind: "$tim" },
+  {
+    $group: {
+      _id: "$naziv_projekta",
+      preoptereceni: {
+        $sum: { $cond: [{ $gt: ["$tim.sati", 15] }, 1, 0] }
+      },
+      normalni: {
+        $sum: {
+          $cond: [
+            { $and: [{ $gte: ["$tim.sati", 10] }, { $lte: ["$tim.sati", 15] }] },
+            1,
+            0
+          ]
+        }
+      }
+    }
+  },
+  { $project: { _id: 0, naziv_projekta: "$_id", preoptereceni: 1, normalni: 1 } }
+])
+// 1) dodaj kategorija na osnovu plate
+db.zaposleni.updateMany(
+  {},
+  [
+    {
+      $set: {
+        kategorija: {
+          $cond: [
+            { $gte: ["$plata", 3000] },
+            "odlican",
+            {
+              $cond: [{ $gte: ["$plata", 2000] }, "dobar", "potrebno unapredjenje"]
+            }
+          ]
+        }
+      }
+    }
+  ]
+)
+
+// 2) povecaj platu za 15% za sektor Finansije i dodaj polja
+const res = db.zaposleni.updateMany(
+  { sektor: "Finansije" },
+  [
+    {
+      $set: {
+        plata: { $multiply: ["$plata", 1.15] },
+        azurirano: new Date(),
+        izvor_promene: "ispit"
+      }
+    }
+  ]
+)
+// res.modifiedCount vraca broj azuriranih dokumenata
+// 1) prosecna plata po sektoru -> sacuvaj u statistika_plata i sortiraj opadajuce
+db.zaposleni.aggregate([
+  {
+    $group: {
+      _id: "$sektor",
+      prosecna_plata: { $avg: "$plata" }
+    }
+  },
+  { $sort: { prosecna_plata: -1 } },
+  { $project: { _id: 0, sektor: "$_id", prosecna_plata: 1 } },
+  { $out: "statistika_plata" }
+])
+
+// 2) indeksi
+db.zaposleni.createIndex({ sektor: 1 })
+db.zaposleni.createIndex({ broj_zaposlenog: 1 }, { unique: true })
