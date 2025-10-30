@@ -1,0 +1,123 @@
+db.projekti.aggregate([
+    { 
+        $project: {
+            _id: 0,
+            naziv_projekta: 1,
+            clanovi_sati: {
+                $map: {
+                    input: "$tim",
+                    as: "clan",
+                    in: {
+                        broj_zaposlenog: "$$clan.broj_zaposlenog",
+                        sati: "$$clan.sati"
+                    }
+                }
+            }
+        }    
+    }
+])
+
+
+db.projekti.updateMany(
+  {}, 
+  [
+    {
+      $set: {
+        tim: {
+          $map: {
+            input: "$tim",
+            as: "clan",
+            in: {
+              $mergeObjects: [
+                "$$clan",
+                {
+                  status: {
+                    $cond: {
+                      if: { $gt: ["$$clan.sati", 20] },
+                      then: "preopterecen",
+                      else: "normalno"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+);
+
+
+db.projekti.aggregate([
+  { $unwind: "$tim" },
+  {
+    $group: {
+      _id: "$naziv_projekta",
+      broj_preopterecenih: {
+        $sum: { $cond: [{ $gt: ["$tim.sati", 15] }, 1, 0] }
+      },
+      broj_normalnih: {
+        $sum: {
+          $cond: [
+            {
+              $and: [{ $gte: ["$tim.sati", 10] }, { $lte: ["$tim.sati", 15] }]
+            },
+            1,
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      naziv_projekta: "$_id",
+      broj_preopterecenih: 1,
+      broj_normalnih: 1
+    }
+  }
+])
+
+
+
+
+db.zaposleni.updateMany({}, [
+  {
+    $set: {
+      kategorija: {
+        $cond: [
+          // IF Uslov
+          { $gte: ["$plata", 3000] },
+          // Then
+          "odlican",
+          // Else
+          // Moze biti samo tekst ("dobar" ili "nije odlican")
+          // Ili mozemo ponovo da ubacimo novi uslov da bismo stvorili if else kao dole
+          {
+            $cond: [{ $gte: ["$plata", 2000] }, "dobar", "potrebno unapređenje"]
+          }
+        ]
+      }
+    }
+  }
+])
+
+//db.zaposleni.updateMany({}, [
+//  {
+//    $set: {
+//      kategorija: {
+//        $cond: [
+//          // IF Uslov
+//          { $gte: ["$plata", 3000] },
+//          // Then
+//          "odlican",
+//          // Else
+//          "dobar"
+//        ]
+//      }
+//    }
+//  }
+//])
+
