@@ -1,0 +1,23 @@
+//db.zaposleni.find({})
+//db.zaposleni.find({sektor:"IT"},{ime:1,plata:1,sektor:1,_id:0})
+//db.zaposleni.find({plata:{$gt:2500},sektor:"Marketing"})
+//db.zaposleni.find({plata:{$exists:true}},{ime:1,plata:1,pozicija:1})
+//db.projekti.find({tim:{$elemMatch:{sati:{$gt:15},zavrsen:false}}})
+
+//[2]
+
+//db.zaposleni.updateMany({sektor:"Finansije"},[{$set:{plata:{$multiply:["$plata",1.15]},azurirano:new Date(),izvor_promene:"ispit"}}])
+
+//[3]
+//db.projekti.aggregate([{$match:{budzet:{$gt:40000}}},{$project:{naziv_projekta:1,broj_clanova:{$size:"$tim"},prosecan_broj_sati:{$avg:"$tim.sati"}}}])
+
+//[4]
+//db.zaposleni.aggregate([{ $group: { _id: "$sektor", prosecna_plata: { $avg: "$plata" } } }, { $sort: { prosecna_plata: -1 }},{ $out: "statistika_plata" }])
+
+//[5]
+//db.zaposleni.createIndex({sektor:1})
+//db.zaposleni.createIndex({broj_zaposlenog:1},{unique:true})
+
+//[6]
+
+db.projekti.aggregate([{$match:{rok:{$gt:new Date()}}},{$lookup:{from:"zaposleni",localField:"tim.broj_zaposlenog",foreignField:"broj_zaposlenog",as:"zaposleni_na_projektu"}},{$project:{naziv_projekta:1,ukupan_broj_clanova:{$size:"$tim"},prosecno_sati_po_clanu:{$avg:"$tim.sati"},prosecna_plata_zaposlenih:{$avg:"$zaposleni_na_projektu_plata"}}}])
